@@ -336,3 +336,123 @@ def color_rating(val):
 # Render table in Streamlit
 st.subheader("Calculated Financial Ratios")
 st.dataframe(df.style.applymap(color_rating, subset=["Rating"]))
+
+
+# DEBT vs EQUITY EVALUATION*******
+
+# Function to calculate Debt vs Equity Decision
+def calculate_financing_decision(revenue, ebitda_margin, ownership, free_cash_flow, growth_stage, 
+                                 desired_funding, equity_valuation_multiple, interest_rate, debt_term, 
+                                 debt_warrant_coverage, future_valuation):
+    """Calculate Debt vs Equity Decision Model"""
+    
+    # EBITDA Calculation
+    ebitda = revenue * (ebitda_margin / 100)
+    
+    # Pre-Money & Post-Money Valuation
+    pre_money_valuation = future_valuation * equity_valuation_multiple
+    post_money_valuation = pre_money_valuation + desired_funding
+    
+    # Equity Financing Calculations
+    total_dilution_equity = desired_funding / post_money_valuation
+    cost_of_equity_dilution = future_valuation * total_dilution_equity
+    
+    # Debt Financing Calculations
+    interest_payment = desired_funding * (interest_rate / 100)
+    total_interest = interest_payment * debt_term
+    warrant_value = desired_funding * (debt_warrant_coverage / 100)
+    debt_service_coverage_ratio = ebitda / total_interest if total_interest != 0 else None
+    cash_flow_adequacy = "Adequate" if debt_service_coverage_ratio >= 1.5 else "Inadequate"
+    total_dilution_debt = warrant_value / future_valuation
+    cost_of_debt_dilution = future_valuation * total_dilution_debt
+    
+    # Decision Framework
+    ownership_preservation = "Debt" if total_dilution_equity > total_dilution_debt else "Equity"
+    cost_of_capital = "Debt" if total_interest < cost_of_equity_dilution else "Equity"
+    cash_flow_financial_health = "Debt" if cash_flow_adequacy == "Adequate" else "Equity"
+    growth_stage_risk = "Debt" if growth_stage >= 3 else "Equity"
+    
+    # Final Recommendation
+    preferred_financing = [ownership_preservation, cost_of_capital, cash_flow_financial_health, growth_stage_risk]
+    final_recommendation = "Recommend Debt Financing" if preferred_financing.count("Debt") >= 3 else "Recommend Equity Financing"
+    
+    return {
+        "EBITDA ($)": f"{ebitda:,.2f}",
+        "Pre-money Valuation ($)": f"{pre_money_valuation:,.2f}",
+        "Post-money Valuation ($)": f"{post_money_valuation:,.2f}",
+        "Total Dilution from Equity": f"{total_dilution_equity:.2%}",
+        "Cost of Equity Dilution ($)": f"{cost_of_equity_dilution:,.2f}",
+        "Interest Payment on Debt ($)": f"{interest_payment:,.2f}",
+        "Total Interest on Debt ($)": f"{total_interest:,.2f}",
+        "Debt Service Coverage Ratio": f"{debt_service_coverage_ratio:.2f}" if debt_service_coverage_ratio is not None else "N/A",
+        "Cash Flow Adequacy for Debt": cash_flow_adequacy,
+        "Total Dilution from Debt": f"{total_dilution_debt:.2%}",
+        "Cost of Debt Dilution ($)": f"{cost_of_debt_dilution:,.2f}",
+        "Ownership Preservation": ownership_preservation,
+        "Cost of Capital": cost_of_capital,
+        "Cash Flow & Financial Health": cash_flow_financial_health,
+        "Growth Stage & Risk": growth_stage_risk,
+        "Final Recommendation": final_recommendation
+    }
+
+# Streamlit UI Section
+st.subheader("Debt vs. Equity Financing Decision")
+
+# Helper function to format numbers for input boxes
+def formatted_number_input(label, value):
+    formatted_value = f"{value:,.0f}".replace(",", "")  # Remove commas for conversion
+    return st.text_input(label, formatted_value, key=label)
+
+# User Inputs
+col1, col2 = st.columns(2)
+
+with col1:
+    revenue = float(formatted_number_input("Revenue ($)", 50000000.0))
+    ebitda_margin = st.number_input("EBITDA Margin (%)", min_value=0.0, value=15.0, format="%.2f")
+    ownership = st.number_input("Ownership (%)", min_value=0.0, value=80.0, format="%.2f")
+    free_cash_flow = float(formatted_number_input("Free Cash Flow ($)", 0.0))
+    growth_stage = st.number_input("Growth Stage (1-5)", min_value=1, max_value=5, value=2)
+    desired_funding = float(formatted_number_input("Desired Funding ($)", 10000000.0))
+
+with col2:
+    equity_valuation_multiple = st.number_input("Equity Valuation Multiple", min_value=0.0, value=5.0, format="%.2f")
+    interest_rate = st.number_input("Interest Rate on Debt (%)", min_value=0.0, value=55.0, format="%.2f")
+    debt_term = st.number_input("Debt Term (Years)", min_value=1, value=3)
+    debt_warrant_coverage = st.number_input("Debt Warrant Coverage (%)", min_value=0.0, value=15.0, format="%.2f")
+    future_valuation = float(formatted_number_input("Future Valuation ($)", 100000000.0))
+
+# Calculate Decision
+decision_results = calculate_financing_decision(revenue, ebitda_margin, ownership, free_cash_flow, growth_stage, 
+                                                desired_funding, equity_valuation_multiple, interest_rate, debt_term, 
+                                                debt_warrant_coverage, future_valuation)
+
+# Display Results with Improved Formatting
+st.markdown("### **Criteria Evaluation**")
+criteria_df = pd.DataFrame([
+    ["Equity", ""],
+    ["Total Dilution from Equity", decision_results["Total Dilution from Equity"]],
+    ["Cost of Equity Dilution ($)", decision_results["Cost of Equity Dilution ($)"]],
+    ["Debt", ""],
+    ["Interest Payment on Debt ($)", decision_results["Interest Payment on Debt ($)"]],
+    ["Total Interest on Debt ($)", decision_results["Total Interest on Debt ($)"]],
+    ["Debt Service Coverage Ratio", decision_results["Debt Service Coverage Ratio"]],
+    ["Cash Flow Adequacy for Debt", decision_results["Cash Flow Adequacy for Debt"]],
+    ["Total Dilution from Debt", decision_results["Total Dilution from Debt"]],
+    ["Cost of Debt Dilution ($)", decision_results["Cost of Debt Dilution ($)"]],
+], columns=["Metric", "Value"])
+
+st.dataframe(criteria_df.style.set_properties(**{'text-align': 'left'})
+             .set_table_styles([{'selector': 'th', 'props': [('font-weight', 'bold')]}]))
+
+st.markdown("### **Decision Factors**")
+decision_df = pd.DataFrame([
+    ["Ownership Preservation", decision_results["Ownership Preservation"]],
+    ["Cost of Capital", decision_results["Cost of Capital"]],
+    ["Cash Flow & Financial Health", decision_results["Cash Flow & Financial Health"]],
+    ["Growth Stage & Risk", decision_results["Growth Stage & Risk"]],
+    ["Final Recommendation", decision_results["Final Recommendation"]]
+], columns=["Factor", "Decision"])
+
+st.dataframe(decision_df.style.set_properties(**{'text-align': 'left'})
+             .set_table_styles([{'selector': 'th', 'props': [('font-weight', 'bold')]}]))
+
