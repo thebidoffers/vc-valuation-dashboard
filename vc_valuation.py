@@ -194,3 +194,145 @@ with col3:
 st.subheader("Comparison of Valuations Across Series")
 st.plotly_chart(create_comparison_chart(series_a, series_b, series_c), use_container_width=True)
 
+
+# CORPORATE FINANCE RATIOS AND ANALYSIS ************
+
+
+
+def calculate_financial_ratios(ebit, ebitda, interest_expense, short_term_debt, total_debt, cash_equivalents,
+                               total_revenue, capex, current_assets, current_liabilities):
+    """Calculate financial ratios based on user inputs."""
+    
+    # Interest Coverage Ratios
+    interest_coverage_ebit = ebit / interest_expense if interest_expense != 0 else None
+    interest_coverage_ebitda = ebitda / interest_expense if interest_expense != 0 else None
+    
+    # Debt Ratios
+    short_term_debt_to_cash = short_term_debt / cash_equivalents if cash_equivalents != 0 else None
+    total_debt_to_cash = total_debt / cash_equivalents if cash_equivalents != 0 else None
+    total_debt_to_ebitda = total_debt / ebitda if ebitda != 0 else None
+
+    # Profitability Ratios (Shown as %)
+    ebitda_to_sales = (ebitda / total_revenue) * 100 if total_revenue != 0 else None
+    ebit_to_sales = (ebit / total_revenue) * 100 if total_revenue != 0 else None
+    
+    # Investment and Liquidity Ratios
+    capex_to_sales = (capex / total_revenue) * 100 if total_revenue != 0 else None
+    working_capital = current_assets - current_liabilities
+    working_capital_to_sales = (working_capital / total_revenue) * 100 if total_revenue != 0 else None
+    
+    return {
+        "Interest Coverage Ratio (EBIT)": interest_coverage_ebit,
+        "Interest Coverage Ratio (EBITDA)": interest_coverage_ebitda,
+        "Short-Term Debt to Cash Ratio": short_term_debt_to_cash,
+        "Total Debt to Cash Ratio": total_debt_to_cash,
+        "Total Debt to EBITDA Ratio": total_debt_to_ebitda,
+        "EBITDA to Sales Ratio (%)": ebitda_to_sales,
+        "EBIT to Sales Ratio (%)": ebit_to_sales,
+        "CAPEX to Sales Ratio (%)": capex_to_sales,
+        "Working Capital to Sales Ratio (%)": working_capital_to_sales
+    }
+
+# Streamlit UI Section
+st.subheader("Financial Ratios Calculator")
+
+# Function to format numbers with commas and parse back to float
+def formatted_number_input(label, value, key):
+    formatted_value = f"{value:,}"  # Display with commas
+    input_value = st.text_input(label, formatted_value, key=key)
+    return float(input_value.replace(",", ""))  # Parse back to raw number
+
+# User Inputs with formatted numbers
+col1, col2 = st.columns(2)
+
+with col1:
+    ebit = formatted_number_input("EBIT (Earnings Before Interest & Taxes)", 800000.0, "ebit")
+    ebitda = formatted_number_input("EBITDA (Earnings Before Interest, Taxes, Depreciation & Amortization)", 1000000.0, "ebitda")
+    interest_expense = formatted_number_input("Interest Expense", 50000.0, "interest_expense")
+    short_term_debt = formatted_number_input("Short-Term Debt", 200000.0, "short_term_debt")
+    total_debt = formatted_number_input("Total Debt", 1000000.0, "total_debt")
+    cash_equivalents = formatted_number_input("Cash and Equivalents", 300000.0, "cash_equivalents")
+
+with col2:
+    total_revenue = formatted_number_input("Total Revenue", 5000000.0, "total_revenue")
+    capex = formatted_number_input("Capital Expenditures (CAPEX)", 300000.0, "capex")
+    current_assets = formatted_number_input("Current Assets", 1500000.0, "current_assets")
+    current_liabilities = formatted_number_input("Current Liabilities", 500000.0, "current_liabilities")
+
+# Calculate Ratios
+ratios = calculate_financial_ratios(ebit, ebitda, interest_expense, short_term_debt, total_debt, cash_equivalents,
+                                    total_revenue, capex, current_assets, current_liabilities)
+
+import pandas as pd
+
+# Function to categorize ratios into Strong, Moderate, Weak
+def get_rating(value, thresholds, reverse_logic=False):
+    """Assign traffic light rating based on value and thresholds."""
+    if value is None:
+        return "N/A", "gray"
+
+    weak, moderate = thresholds
+
+    if reverse_logic:
+        # Reverse logic: Lower is better (Debt to Cash ratios)
+        if value > weak:
+            return "🔴 Weak", "red"
+        elif value > moderate:
+            return "🟡 Moderate", "orange"
+        else:
+            return "🟢 Strong", "green"
+    else:
+        # Normal logic: Higher is better
+        if value < weak:
+            return "🔴 Weak", "red"
+        elif value < moderate:
+            return "🟡 Moderate", "orange"
+        else:
+            return "🟢 Strong", "green"
+
+# Define thresholds for each ratio
+thresholds = {
+    "Interest Coverage Ratio (EBIT)": (1.5, 2.5),
+    "Interest Coverage Ratio (EBITDA)": (2.0, 3.5),
+    "Short-Term Debt to Cash Ratio": (2.0, 1.0),  # Reverse logic
+    "Total Debt to Cash Ratio": (5.0, 2.5),  # Reverse logic
+    "Total Debt to EBITDA Ratio": (4.0, 2.5),
+    "EBITDA to Sales Ratio (%)": (10, 20),
+    "EBIT to Sales Ratio (%)": (5, 15),
+    "CAPEX to Sales Ratio (%)": (20, 10),  # Reverse logic
+    "Working Capital to Sales Ratio (%)": (0, 10)
+}
+
+# Format the results into a DataFrame
+data = []
+for metric, value in ratios.items():
+    if "Ratio (%)" in metric:  # Format as percentage
+        display_value = f"{value:,.2f}%" if value is not None else "N/A"
+    elif "Interest Coverage Ratio" in metric:  # Format as multiple (x)
+        display_value = f"{value:,.2f}x" if value is not None else "N/A"
+    else:  # Default number format
+        display_value = f"{value:,.2f}" if value is not None else "N/A"
+    
+    # Check if the metric requires reverse logic
+    reverse_logic = metric in ["Short-Term Debt to Cash Ratio", "Total Debt to Cash Ratio", "CAPEX to Sales Ratio (%)"]
+
+    rating, color = get_rating(value, thresholds[metric], reverse_logic) if metric in thresholds else ("N/A", "gray")
+    
+    data.append([metric, display_value, rating])
+
+# Create a DataFrame for Streamlit
+df = pd.DataFrame(data, columns=["Metric", "Value", "Rating"])
+
+# Apply color formatting using Streamlit's built-in dataframe styling
+def color_rating(val):
+    if "Weak" in val:
+        return "color: red"
+    elif "Moderate" in val:
+        return "color: orange"
+    elif "Strong" in val:
+        return "color: green"
+    return ""
+
+# Render table in Streamlit
+st.subheader("Calculated Financial Ratios")
+st.dataframe(df.style.applymap(color_rating, subset=["Rating"]))
